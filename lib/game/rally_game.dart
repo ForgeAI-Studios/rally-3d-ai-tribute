@@ -1,13 +1,14 @@
 import 'package:flame/game.dart';
-import 'package:flame/input.dart'; // కీబోర్డ్ ఈవెంట్స్ కోసం
+import 'package:flame/components.dart'; // కరెక్ట్ ఇంపోర్ట్ యాడ్ చేసాం
+import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'player_car.dart';
 
 class RallyGame extends FlameGame with KeyboardEvents {
   final String gameMode;
-  
-  // డిఫాల్ట్‌గా టచ్ స్క్రీన్ కంట్రోల్స్ ఆన్ (Settings లో మార్చుకోవచ్చు)
   bool useVirtualKeypad = false; 
+  late PlayerCar playerCar;
 
   RallyGame({required this.gameMode});
 
@@ -16,6 +17,12 @@ class RallyGame extends FlameGame with KeyboardEvents {
     super.onLoad();
     debugPrint("Initializing Flame Engine for Mode: $gameMode");
     
+    playerCar = PlayerCar()
+      ..position = Vector2(size.x / 2, size.y - 150)
+      ..anchor = Anchor.center;
+    
+    add(playerCar);
+
     if (gameMode == 'Race') {
       _initializeRaceTrack();
     } else if (gameMode == 'Parking') {
@@ -23,20 +30,12 @@ class RallyGame extends FlameGame with KeyboardEvents {
     }
   }
 
-  void _initializeRaceTrack() {
-    debugPrint("Loading 8-bit asphalt sprites...");
-  }
+  void _initializeRaceTrack() => debugPrint("Loading Race Track Vector Maps...");
+  void _initializeParkingArena() => debugPrint("Loading Parking Matrix...");
 
-  void _initializeParkingArena() {
-    debugPrint("Loading structured obstacle layout matrix...");
-  }
-
-  // లాప్‌టాప్ కీబోర్డ్ బటన్స్ (Arrow keys & WASD) సపోర్ట్
   @override
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    final isKeyDown = event is KeyDownEvent || event is KeyRepeatEvent;
-
-    if (isKeyDown) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
       if (keysPressed.contains(LogicalKeyboardKey.arrowUp) || keysPressed.contains(LogicalKeyboardKey.keyW)) {
         moveUp();
       }
@@ -53,9 +52,8 @@ class RallyGame extends FlameGame with KeyboardEvents {
     return KeyEventResult.handled;
   }
 
-  // కార్ మూవ్‌మెంట్ యాక్షన్స్ (ఇవి టచ్ కీప్యాడ్ మరియు లాప్‌టాప్ కీబోర్డ్ రెండింటికీ వర్తిస్తాయి)
-  void moveUp() => debugPrint("Action: Move Up (Accelerate)");
-  void moveDown() => debugPrint("Action: Move Down (Brake/Reverse)");
-  void moveLeft() => debugPrint("Action: Move Left");
-  void moveRight() => debugPrint("Action: Move Right");
+  void moveUp() => playerCar.moveUp();
+  void moveDown() => playerCar.moveDown();
+  void moveLeft() => playerCar.moveLeft();
+  void moveRight() => playerCar.moveRight();
 }
