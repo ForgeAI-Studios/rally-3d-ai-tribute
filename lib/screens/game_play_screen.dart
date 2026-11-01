@@ -25,15 +25,14 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // టచ్ స్క్రీన్ స్వైప్ కంట్రోల్స్ కోసం GestureDetector వాడుతున్నాం
+          // టచ్ స్క్రీన్ స్వైప్ యాక్షన్స్ కోసం అప్‌డేట్ చేసిన GestureDetector
           GestureDetector(
             onPanUpdate: (details) {
-              if (_rallyGame.useVirtualKeypad) return; // కీప్యాడ్ మోడ్ ఉంటే టచ్ పనిచేయదు
+              // కీప్యాడ్ మోడ్ ఆన్ లో ఉంటే స్క్రీన్ టచ్ స్వైప్ కంట్రోల్స్ పనిచేయవు
+              if (_rallyGame.useVirtualKeypad) return; 
               
-              if (details.delta.dx < -5) _rallyGame.moveLeft();
-              if (details.delta.dx > 5) _rallyGame.moveRight();
-              if (details.delta.dy < -5) _rallyGame.moveUp();
-              if (details.delta.dy > 5) _rallyGame.moveDown();
+              // rally_game.dart లోని కేంద్రీకృత మూవ్‌మెంట్ లాజిక్‌కి డెల్టాను పంపుతున్నాం
+              _rallyGame.handleSwipe(details.delta);
             },
             child: GameWidget(game: _rallyGame),
           ),
@@ -49,7 +48,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // టాప్ రైట్ - కంట్రోల్స్ సెట్టింగ్స్ బటన్
+          // టాప్ రైట్ - కంట్రోల్స్ సెట్టింగ్స్ బటన్ (గేర్ ఐకాన్)
           Positioned(
             top: 45,
             right: 20,
@@ -64,14 +63,17 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // సెట్టింగ్స్ పాప్-అప్ ప్యానెల్
+          // సెట్టింగ్స్ పాప్-అప్ ప్యానెల్ (కీప్యాడ్ టోగుల్ చేయడానికి)
           if (_showKeypadSettings)
             Positioned(
               top: 100,
               right: 20,
               child: Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(
+                  color: Colors.black87, 
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Row(
                   children: [
                     const Text("Nokia Keypad Overlay: ", style: TextStyle(color: Colors.white)),
@@ -88,7 +90,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               ),
             ),
 
-          // వర్చువల్ కీప్యాడ్ లేఅవుట్ (సెట్టింగ్స్ లో ఆన్ చేస్తేనే కనిపిస్తుంది)
+          // వర్చువల్ కీప్యాడ్ లేఅవుట్ (సెట్టింగ్స్ లో ఆన్ చేస్తేనే కింద కనిపిస్తుంది)
           if (_rallyGame.useVirtualKeypad)
             Align(
               alignment: Alignment.bottomCenter,
@@ -127,6 +129,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     );
   }
 
+  // అథెంటిక్ నోకియా స్టైల్ న్యూమరిక్ బటన్ విడ్జెట్
   Widget _buildKypadButton({required String label, required String subLabel, required VoidCallback onTap}) {
     return GestureDetector(
       onTapDown: (_) => onTap(),
