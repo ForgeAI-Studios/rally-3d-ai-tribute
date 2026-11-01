@@ -25,19 +25,23 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // టచ్ స్క్రీన్ స్వైప్ యాక్షన్స్ కోసం అప్‌డేట్ చేసిన GestureDetector
+          // 1. గేమ్ కాన్వాస్ లూప్
           GestureDetector(
             onPanUpdate: (details) {
-              // కీప్యాడ్ మోడ్ ఆన్ లో ఉంటే స్క్రీన్ టచ్ స్వైప్ కంట్రోల్స్ పనిచేయవు
               if (_rallyGame.useVirtualKeypad) return; 
-              
-              // rally_game.dart లోని కేంద్రీకృత మూవ్‌మెంట్ లాజిక్‌కి డెల్టాను పంపుతున్నాం
               _rallyGame.handleSwipe(details.delta);
             },
-            child: GameWidget(game: _rallyGame),
+            child: GameWidget(
+              game: _rallyGame,
+              overlayBuilderMap: {
+                'GameOverMenu': (context, RallyGame game) {
+                  return const SizedBox.shrink(); 
+                },
+              },
+            ),
           ),
 
-          // టాప్ లెఫ్ట్ - బ్యాక్ బటన్
+          // 2. టాప్ లెఫ్ట్ - బ్యాక్ బటన్
           Positioned(
             top: 45,
             left: 20,
@@ -48,7 +52,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // టాప్ రైట్ - కంట్రోల్స్ సెట్టింగ్స్ బటన్ (గేర్ ఐకాన్)
+          // 3. టాప్ రైట్ - సెట్టింగ్స్ బటన్
           Positioned(
             top: 45,
             right: 20,
@@ -63,17 +67,14 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // సెట్టింగ్స్ పాప్-అప్ ప్యానెల్ (కీప్యాడ్ టోగుల్ చేయడానికి)
+          // సెట్టింగ్స్ ప్యానెల్
           if (_showKeypadSettings)
             Positioned(
               top: 100,
               right: 20,
               child: Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black87, 
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10)),
                 child: Row(
                   children: [
                     const Text("Nokia Keypad Overlay: ", style: TextStyle(color: Colors.white)),
@@ -90,7 +91,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               ),
             ),
 
-          // వర్చువల్ కీప్యాడ్ లేఅవుట్ (సెట్టింగ్స్ లో ఆన్ చేస్తేనే కింద కనిపిస్తుంది)
+          // 4. వర్చువల్ కీప్యాడ్ లేఅవుట్
           if (_rallyGame.useVirtualKeypad)
             Align(
               alignment: Alignment.bottomCenter,
@@ -124,12 +125,48 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                 ),
               ),
             ),
+
+          // 5. నిరంతరం గేమ్ ఓవర్ స్టేట్‌ను గమనించి రీస్టార్ట్ UI చూపించే మెకానిజం
+          StreamBuilder(
+            stream: Stream.periodic(const Duration(milliseconds: 100)),
+            builder: (context, snapshot) {
+              if (!_rallyGame.isGameOver) return const SizedBox.shrink();
+
+              return Container(
+                color: Colors.black.withOpacity(0.85),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'GAME OVER',
+                        style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.redAccent, letterSpacing: 3),
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                        ),
+                        icon: const Icon(Icons.refresh, color: Colors.white),
+                        label: const Text('RESTART', style: TextStyle(fontSize: 18, color: Colors.white)),
+                        onPressed: () {
+                          setState(() {
+                            _rallyGame.resetGame(); 
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  // అథెంటిక్ నోకియా స్టైల్ న్యూమరిక్ బటన్ విడ్జెట్
   Widget _buildKypadButton({required String label, required String subLabel, required VoidCallback onTap}) {
     return GestureDetector(
       onTapDown: (_) => onTap(),

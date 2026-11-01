@@ -71,6 +71,23 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
     super.render(canvas);
   }
 
+  // ఈ ఫంక్షన్‌ను మీ RallyGame క్లాస్ లోపల అందరికంటే కింద యాడ్ చేయండి:
+void resetGame() {
+  isGameOver = false;
+  roadOffset = 0.0;
+  obstacleTimer = 0.0;
+  
+  // రోడ్డుపై ఉన్న పాత అడ్డంకులన్నింటినీ క్లియర్ చేయడం
+  children.whereType<Obstacle>().forEach((obstacle) {
+    obstacle.removeFromParent();
+  });
+  
+  // కారును మళ్లీ పాత పొజిషన్ కి తీసుకురావడం
+  playerCar.position = Vector2(size.x / 2, size.y - 150);
+  debugPrint("Game Reset completed successfully!");
+}
+
+
   @override
   void update(double dt) {
     if (isGameOver) return;
