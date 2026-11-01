@@ -25,7 +25,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. గేమ్ కాన్వాస్ లూప్
+          // 1. Hardware Accelerated Flame Canvas Layer
           GestureDetector(
             onPanUpdate: (details) {
               if (_rallyGame.useVirtualKeypad) return; 
@@ -41,7 +41,37 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // 2. టాప్ లెఫ్ట్ - బ్యాక్ బటన్
+          // 2. Real-time Live Score Dashboard Display
+          StreamBuilder(
+            stream: Stream.periodic(const Duration(milliseconds: 50)),
+            builder: (context, snapshot) {
+              return Positioned(
+                top: 45,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'SCORE: ${_rallyGame.score.toInt()}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // 3. Navigation Controls - Floating Back Route Trigger
           Positioned(
             top: 45,
             left: 20,
@@ -52,7 +82,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // 3. టాప్ రైట్ - సెట్టింగ్స్ బటన్
+          // 4. Configuration Controls - Menu Settings Toggle Gear Link
           Positioned(
             top: 45,
             right: 20,
@@ -67,7 +97,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // సెట్టింగ్స్ ప్యానెల్
+          // Settings popup overlay drawer panel container element
           if (_showKeypadSettings)
             Positioned(
               top: 100,
@@ -91,7 +121,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               ),
             ),
 
-          // 4. వర్చువల్ కీప్యాడ్ లేఅవుట్
+          // 5. Classic Legacy 2-4-6-8 Tactile Virtual Input Pad Overlay Layer
           if (_rallyGame.useVirtualKeypad)
             Align(
               alignment: Alignment.bottomCenter,
@@ -126,7 +156,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               ),
             ),
 
-          // 5. నిరంతరం గేమ్ ఓవర్ స్టేట్‌ను గమనించి రీస్టార్ట్ UI చూపించే మెకానిజం
+          // 6. Enhanced Game Over Popup Layout Box displaying High Scores
           StreamBuilder(
             stream: Stream.periodic(const Duration(milliseconds: 100)),
             builder: (context, snapshot) {
@@ -142,14 +172,24 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                         'GAME OVER',
                         style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.redAccent, letterSpacing: 3),
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
+                      Text(
+                        'YOUR SCORE: ${_rallyGame.score.toInt()}',
+                        style: const TextStyle(fontSize: 20, color: Colors.white),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'BEST HIGH SCORE: ${_rallyGame.highScore}',
+                        style: const TextStyle(fontSize: 18, color: Colors.amber, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 40),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 15),
                         ),
                         icon: const Icon(Icons.refresh, color: Colors.white),
-                        label: const Text('RESTART', style: TextStyle(fontSize: 18, color: Colors.white)),
+                        label: const Text('PLAY AGAIN', style: TextStyle(fontSize: 18, color: Colors.white)),
                         onPressed: () {
                           setState(() {
                             _rallyGame.resetGame(); 
