@@ -7,11 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'player_car.dart';
 import 'obstacle.dart'; 
+import 'parking_spot.dart';
 
 class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
   final String gameMode;
   bool useVirtualKeypad = false; 
   bool isGameOver = false; 
+  bool isLevelCleared = false; // Flag to track when parking arena objectives are completed successfully
   late PlayerCar playerCar;
 
   // Scoring Parameters
@@ -43,6 +45,28 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
       ..anchor = Anchor.center;
     
     add(playerCar);
+
+    // Context-dependent operational sequence execution routes
+    if (gameMode == 'Race') {
+      _initializeRaceTrack();
+    } else if (gameMode == 'Parking') {
+      _initializeParkingArena();
+    }
+  }
+
+  void _initializeRaceTrack() {
+    debugPrint("Loading Race Track Vector Maps...");
+  }
+
+  void _initializeParkingArena() {
+    debugPrint("Loading structured obstacle layout matrix...");
+    
+    // Add static road barriers styled after traditional parking walls using Obstacle templates
+    add(Obstacle(position: Vector2((size.x / 2) - 80, 200)));
+    add(Obstacle(position: Vector2((size.x / 2) + 60, 200)));
+    
+    // Instantiate the neon yellow destination parking bounding box overlay layer
+    add(ParkingSpot(position: Vector2((size.x / 2) - 25, 80)));
   }
 
   Future<void> _loadHighScore() async {
@@ -68,15 +92,21 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
     // 2. Procedurally Rasterize the Segment Matrices to Draw Curves
     for (double y = 0; y < size.y; y += segmentHeight) {
-      // Apply a progressive quadratic curve skew relative to the horizon
-      double perspectiveScale = (size.y - y) / size.y;
-      double curveCorrection = MathUtils.pow(perspectiveScale, 2) * currentCurveOffset * 120;
+      // Skew road lines using quadratic curves only if active mode is a high speed road race
+      double curveCorrection = 0.0;
+      if (gameMode == 'Race') {
+        double perspectiveScale = (size.y - y) / size.y;
+        curveCorrection = MathUtils.pow(perspectiveScale, 2) * currentCurveOffset * 120;
+      }
       
       double roadLeft = ((size.x - roadWidth) / 2) + curveCorrection;
       final rectSegment = Rect.fromLTWH(roadLeft, y, roadWidth, segmentHeight);
       
-      // Secondary stripe patterns to highlight physical velocity speeds
-      bool isStripeActive = (((y + roadOffset) ~/ segmentHeight) % 2 == 0);
+      // Toggle speed stripe layout arrays depending on context velocity states
+      bool isStripeActive = gameMode == 'Race'
+          ? (((y + roadOffset) ~/ segmentHeight) % 2 == 0)
+          : ((y ~/ segmentHeight) % 2 == 0);
+          
       canvas.drawRect(rectSegment, Paint()..color = isStripeActive ? const Color(0xFF383838) : const Color(0xFF3D3D3D));
 
       // Side Curbs (Red and White Legacy Warning Bands)
@@ -95,7 +125,7 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
   @override
   void update(double dt) {
-    if (isGameOver) return;
+    if (isGameOver || isLevelCleared) return;
 
     super.update(dt);
     
@@ -105,13 +135,11 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
       // Curve Simulation Calculations
       curveDurationTimer += dt;
-      if (curveDurationTimer > 3.0) { // Alter track directions every 3 seconds
+      if (curveDurationTimer > 3.0) {
         curveDurationTimer = 0.0;
-        // Randomly alternate between straight tracks (-0.2 to 0.2), sharp lefts, or rights
         trackCurve = (_random.nextDouble() * 2.0) - 1.0; 
       }
 
-      // Smooth out interpolation frame shifts to avoid sudden visual clipping bugs
       currentCurveOffset += (trackCurve - currentCurveOffset) * 2 * dt;
 
       // Obstacle Generation Mechanics
@@ -120,11 +148,9 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
         obstacleTimer = 0.0;
         double roadWidth = size.x * 0.72;
         double roadLeft = (size.x - roadWidth) / 2;
-        // Shift oncoming spawns closer to the skewed horizon focal points
         double targetHorizonX = roadLeft + (roadWidth / 2) + (currentCurveOffset * 120);
         double spawnX = targetHorizonX + (_random.nextDouble() * 100 - 50);
         
-        // Ensure boundaries are clamped securely inside playable parameters
         spawnX = spawnX.clamp(roadLeft + 25, roadLeft + roadWidth - 55);
         add(Obstacle(position: Vector2(spawnX, -40)));
       }
@@ -132,7 +158,8 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
     // Process collisions and manage element cycles
     children.whereType<Obstacle>().forEach((obstacle) {
-      if (obstacle.position.y > size.y) {
+      // Clear infinite runner elements if they cross off screen metrics during a Race
+      if (obstacle.position.y > size.y && gameMode == 'Race') {
         obstacle.removeFromParent();
       }
 
@@ -142,11 +169,21 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
         debugPrint("CRASH!!! GAME OVER!");
       }
     });
+
+    // Evaluate target overlap coordinates inside the structural Parking layout arena bounds
+    if (gameMode == 'Parking') {
+      children.whereType<ParkingSpot>().forEach((spot) {
+        if (playerCar.toRect().overlaps(spot.toRect())) {
+          isLevelCleared = true;
+          debugPrint("SUCCESS!!! LEVEL CLEARED!");
+        }
+      });
+    }
   }
 
   @override
   void handleSwipe(Offset delta) {
-    if (isGameOver || useVirtualKeypad) return;
+    if (isGameOver || isLevelCleared || useVirtualKeypad) return;
     if (delta.dx < -5) moveLeft();
     if (delta.dx > 5) moveRight();
     if (delta.dy < -5) moveUp();
@@ -155,7 +192,7 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
   @override
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    if (isGameOver) return KeyEventResult.handled;
+    if (isGameOver || isLevelCleared) return KeyEventResult.handled;
 
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
       if (keysPressed.contains(LogicalKeyboardKey.arrowUp) || keysPressed.contains(LogicalKeyboardKey.keyW)) moveUp();
@@ -167,24 +204,25 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
   }
 
   void moveUp() {
-    if (isGameOver) return;
-    if (playerCar.position.y > 140) playerCar.position.y -= 15;
+    if (isGameOver || isLevelCleared) return;
+    if (playerCar.position.y > 80) playerCar.position.y -= 15;
   }
   void moveDown() {
-    if (isGameOver) return;
+    if (isGameOver || isLevelCleared) return;
     if (playerCar.position.y < size.y - 120) playerCar.position.y += 15;
   }
   void moveLeft() {
-    if (isGameOver) return;
+    if (isGameOver || isLevelCleared) return;
     if (playerCar.position.x > (size.x * 0.12)) playerCar.position.x -= 18;
   }
   void moveRight() {
-    if (isGameOver) return;
+    if (isGameOver || isLevelCleared) return;
     if (playerCar.position.x < (size.x * 0.88)) playerCar.position.x += 18;
   }
 
   void resetGame() {
     isGameOver = false;
+    isLevelCleared = false;
     score = 0.0;
     roadOffset = 0.0;
     obstacleTimer = 0.0;
@@ -196,12 +234,19 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
       obstacle.removeFromParent();
     });
     
+    // Clear and re-instantiate structural maps safely upon resetting parking levels
+    if (gameMode == 'Parking') {
+      children.whereType<ParkingSpot>().forEach((spot) {
+        spot.removeFromParent();
+      });
+      _initializeParkingArena();
+    }
+    
     playerCar.position = Vector2(size.x / 2, size.y - 150);
     debugPrint("Game Reset completed successfully!");
   }
 }
 
-// Inline helper utility to handle backward compatible power calculations securely
 class MathUtils {
   static double pow(double base, int exponent) {
     double result = 1.0;
