@@ -4,7 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // local storage కోసం
+import 'package:shared_preferences/shared_preferences.dart';
 import 'player_car.dart';
 import 'obstacle.dart'; 
 
@@ -14,15 +14,21 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
   bool isGameOver = false; 
   late PlayerCar playerCar;
 
-  // Scoring Variables
+  // Scoring Parameters
   double score = 0.0;
   int highScore = 0;
 
-  // Environment Engine Variables
+  // Tracking Mechanics & Core Motion Speeds
   double roadOffset = 0.0;
-  final double roadSpeed = 300.0; 
+  final double roadSpeed = 350.0; 
   double obstacleTimer = 0.0;
-  final double spawnInterval = 1.5; 
+  final double spawnInterval = 1.3; 
+
+  // Procedural Curve Vectors
+  double trackCurve = 0.0;          // Current target curve displacement
+  double currentCurveOffset = 0.0;   // Dynamic horizontal layout transform skew
+  double curveDurationTimer = 0.0;
+  final Random _random = Random();
 
   RallyGame({required this.gameMode});
 
@@ -30,8 +36,6 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
   Future<void> onLoad() async {
     super.onLoad();
     debugPrint("Initializing Flame Engine for Mode: $gameMode");
-    
-    // Load local high score data immediately upon game entry
     _loadHighScore();
 
     playerCar = PlayerCar()
@@ -41,7 +45,6 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
     add(playerCar);
   }
 
-  // Local storage management routines
   Future<void> _loadHighScore() async {
     final prefs = await SharedPreferences.getInstance();
     highScore = prefs.getInt('rally_highscore_${gameMode.toLowerCase()}') ?? 0;
@@ -52,41 +55,39 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
       highScore = score.toInt();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('rally_highscore_${gameMode.toLowerCase()}', highScore);
-      debugPrint("New High Score saved: $highScore");
     }
   }
 
   @override
   void render(Canvas canvas) {
-    // 1. Background Grass Environment Canvas
-    canvas.drawRect(size.toRect(), Paint()..color = const Color(0xFF2E7D32));
+    // 1. Render Terrain Base Layer
+    canvas.drawRect(size.toRect(), Paint()..color = const Color(0xFF1E5E2F));
 
-    // 2. Center Grey Asphalt Track Strip Lines
-    final double roadWidth = size.x * 0.7; 
-    final double roadLeft = (size.x - roadWidth) / 2;
-    final rectRoad = Rect.fromLTWH(roadLeft, 0, roadWidth, size.y);
-    canvas.drawRect(rectRoad, Paint()..color = const Color(0xFF424242));
+    final double roadWidth = size.x * 0.72; 
+    double segmentHeight = 20.0;
 
-    // 3. Safety Curbs Layout Borders (Red & White Bands)
-    final paintWhite = Paint()..color = Colors.white;
-    final paintRed = Paint()..color = Colors.red;
-    
-    double segmentHeight = 40.0;
-    for (double y = -segmentHeight; y < size.y + segmentHeight; y += segmentHeight) {
-      double currentY = y + (roadOffset % segmentHeight);
-      final borderPaint = ((y ~/ segmentHeight) % 2 == 0) ? paintWhite : paintRed;
+    // 2. Procedurally Rasterize the Segment Matrices to Draw Curves
+    for (double y = 0; y < size.y; y += segmentHeight) {
+      // Apply a progressive quadratic curve skew relative to the horizon
+      double perspectiveScale = (size.y - y) / size.y;
+      double curveCorrection = MathUtils.pow(perspectiveScale, 2) * currentCurveOffset * 120;
       
-      canvas.drawRect(Rect.fromLTWH(roadLeft - 8, currentY, 8, segmentHeight), borderPaint);
-      canvas.drawRect(Rect.fromLTWH(roadLeft + roadWidth, currentY, 8, segmentHeight), borderPaint);
-    }
+      double roadLeft = ((size.x - roadWidth) / 2) + curveCorrection;
+      final rectSegment = Rect.fromLTWH(roadLeft, y, roadWidth, segmentHeight);
+      
+      // Secondary stripe patterns to highlight physical velocity speeds
+      bool isStripeActive = (((y + roadOffset) ~/ segmentHeight) % 2 == 0);
+      canvas.drawRect(rectSegment, Paint()..color = isStripeActive ? const Color(0xFF383838) : const Color(0xFF3D3D3D));
 
-    // 4. Center Dashed Lane Separators
-    final paintDivider = Paint()..color = Colors.white.withOpacity(0.6);
-    double dashHeight = 30.0;
-    double dashGap = 30.0;
-    for (double y = -dashHeight; y < size.y + dashHeight; y += (dashHeight + dashGap)) {
-      double currentY = y + (roadOffset % (dashHeight + dashGap));
-      canvas.drawRect(Rect.fromLTWH(size.x / 2 - 3, currentY, 6, dashHeight), paintDivider);
+      // Side Curbs (Red and White Legacy Warning Bands)
+      final curbPaint = isStripeActive ? (Paint()..color = Colors.white) : (Paint()..color = Colors.red.shade700);
+      canvas.drawRect(Rect.fromLTWH(roadLeft - 10, y, 10, segmentHeight), curbPaint);
+      canvas.drawRect(Rect.fromLTWH(roadLeft + roadWidth, y, 10, segmentHeight), curbPaint);
+
+      // Center Lane Divider Segment Dots
+      if (isStripeActive && y > 80) {
+        canvas.drawRect(Rect.fromLTWH(roadLeft + (roadWidth / 2) - 3, y, 6, segmentHeight), Paint()..color = Colors.white60);
+      }
     }
 
     super.render(canvas);
@@ -100,22 +101,36 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
     
     if (gameMode == 'Race') {
       roadOffset += roadSpeed * dt;
-      
-      // Programmatically increment score metrics based on survival frames
-      score += 15 * dt; 
+      score += 18 * dt; 
 
-      // Obstacle spawning sequence clock ticks
+      // Curve Simulation Calculations
+      curveDurationTimer += dt;
+      if (curveDurationTimer > 3.0) { // Alter track directions every 3 seconds
+        curveDurationTimer = 0.0;
+        // Randomly alternate between straight tracks (-0.2 to 0.2), sharp lefts, or rights
+        trackCurve = (_random.nextDouble() * 2.0) - 1.0; 
+      }
+
+      // Smooth out interpolation frame shifts to avoid sudden visual clipping bugs
+      currentCurveOffset += (trackCurve - currentCurveOffset) * 2 * dt;
+
+      // Obstacle Generation Mechanics
       obstacleTimer += dt;
       if (obstacleTimer >= spawnInterval) {
         obstacleTimer = 0.0;
-        double roadWidth = size.x * 0.7;
+        double roadWidth = size.x * 0.72;
         double roadLeft = (size.x - roadWidth) / 2;
-        double randomX = roadLeft + 20 + Random().nextDouble() * (roadWidth - 70);
-        add(Obstacle(position: Vector2(randomX, -50)));
+        // Shift oncoming spawns closer to the skewed horizon focal points
+        double targetHorizonX = roadLeft + (roadWidth / 2) + (currentCurveOffset * 120);
+        double spawnX = targetHorizonX + (_random.nextDouble() * 100 - 50);
+        
+        // Ensure boundaries are clamped securely inside playable parameters
+        spawnX = spawnX.clamp(roadLeft + 25, roadLeft + roadWidth - 55);
+        add(Obstacle(position: Vector2(spawnX, -40)));
       }
     }
 
-    // Process active elements out of bounds and evaluate collision overlays
+    // Process collisions and manage element cycles
     children.whereType<Obstacle>().forEach((obstacle) {
       if (obstacle.position.y > size.y) {
         obstacle.removeFromParent();
@@ -123,13 +138,12 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
       if (playerCar.toRect().overlaps(obstacle.toRect())) {
         isGameOver = true;
-        _updateHighScore(); // Check and commit high score changes upon impact
+        _updateHighScore();
         debugPrint("CRASH!!! GAME OVER!");
       }
     });
   }
 
-  // Engine control invocation routing lines
   @override
   void handleSwipe(Offset delta) {
     if (isGameOver || useVirtualKeypad) return;
@@ -154,27 +168,28 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
 
   void moveUp() {
     if (isGameOver) return;
-    if (playerCar.position.y > 100) playerCar.moveUp();
+    if (playerCar.position.y > 140) playerCar.position.y -= 15;
   }
   void moveDown() {
     if (isGameOver) return;
-    if (playerCar.position.y < size.y - 100) playerCar.moveDown();
+    if (playerCar.position.y < size.y - 120) playerCar.position.y += 15;
   }
   void moveLeft() {
     if (isGameOver) return;
-    if (playerCar.position.x > (size.x * 0.15) + 30) playerCar.moveLeft();
+    if (playerCar.position.x > (size.x * 0.12)) playerCar.position.x -= 18;
   }
   void moveRight() {
     if (isGameOver) return;
-    if (playerCar.position.x < (size.x * 0.85) - 30) playerCar.moveRight();
+    if (playerCar.position.x < (size.x * 0.88)) playerCar.position.x += 18;
   }
 
-  // Complete game environment state variables reset sequence
   void resetGame() {
     isGameOver = false;
     score = 0.0;
     roadOffset = 0.0;
     obstacleTimer = 0.0;
+    trackCurve = 0.0;
+    currentCurveOffset = 0.0;
     _loadHighScore();
     
     children.whereType<Obstacle>().forEach((obstacle) {
@@ -183,5 +198,16 @@ class RallyGame extends FlameGame with KeyboardEvents, HasCollisionDetection {
     
     playerCar.position = Vector2(size.x / 2, size.y - 150);
     debugPrint("Game Reset completed successfully!");
+  }
+}
+
+// Inline helper utility to handle backward compatible power calculations securely
+class MathUtils {
+  static double pow(double base, int exponent) {
+    double result = 1.0;
+    for (int i = 0; i < exponent; i++) {
+      result *= base;
+    }
+    return result;
   }
 }
