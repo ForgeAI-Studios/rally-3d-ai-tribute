@@ -4,7 +4,6 @@ import '../game/rally_game.dart';
 
 class GamePlayScreen extends StatefulWidget {
   final String gameMode;
-
   const GamePlayScreen({super.key, required this.gameMode});
 
   @override
@@ -13,6 +12,7 @@ class GamePlayScreen extends StatefulWidget {
 
 class _GamePlayScreenState extends State<GamePlayScreen> {
   late RallyGame _rallyGame;
+  bool _showKeypadSettings = false;
 
   @override
   void initState() {
@@ -25,10 +25,20 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Layer 1: Hardware-Accelerated Flame Game Canvas
-          GameWidget(game: _rallyGame),
+          // టచ్ స్క్రీన్ స్వైప్ కంట్రోల్స్ కోసం GestureDetector వాడుతున్నాం
+          GestureDetector(
+            onPanUpdate: (details) {
+              if (_rallyGame.useVirtualKeypad) return; // కీప్యాడ్ మోడ్ ఉంటే టచ్ పనిచేయదు
+              
+              if (details.delta.dx < -5) _rallyGame.moveLeft();
+              if (details.delta.dx > 5) _rallyGame.moveRight();
+              if (details.delta.dy < -5) _rallyGame.moveUp();
+              if (details.delta.dy > 5) _rallyGame.moveDown();
+            },
+            child: GameWidget(game: _rallyGame),
+          ),
 
-          // Layer 2: Top Floating Back Button
+          // టాప్ లెఫ్ట్ - బ్యాక్ బటన్
           Positioned(
             top: 45,
             left: 20,
@@ -39,66 +49,85 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
           ),
 
-          // Layer 3: Nokia Retro Virtual Keypad Controller Overlap
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 40.0),
+          // టాప్ రైట్ - కంట్రోల్స్ సెట్టింగ్స్ బటన్
+          Positioned(
+            top: 45,
+            right: 20,
+            child: FloatingActionButton.small(
+              backgroundColor: Colors.black54,
+              child: const Icon(Icons.settings, color: Colors.white),
+              onPressed: () {
+                setState(() {
+                  _showKeypadSettings = !_showKeypadSettings;
+                });
+              },
+            ),
+          ),
+
+          // సెట్టింగ్స్ పాప్-అప్ ప్యానెల్
+          if (_showKeypadSettings)
+            Positioned(
+              top: 100,
+              right: 20,
               child: Container(
-                width: 200,
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade800, width: 2),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10)),
+                child: Row(
                   children: [
-                    // Key '2' - Accelerate Up
-                    _buildKypadButton(label: '2', subLabel: '▲', onTap: () {
-                      debugPrint("Keypad: 2 Pressed");
-                      // Will bind to player car's upward vector velocity acceleration acceleration logic
-                    }),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Key '4' - Steer Left
-                        _buildKypadButton(label: '4', subLabel: '◀', onTap: () {
-                          debugPrint("Keypad: 4 Pressed");
-                          // Will trigger player car horizontal steering shift left adjustments
-                        }),
-                        const SizedBox(width: 25),
-                        // Key '6' - Steer Right
-                        _buildKypadButton(label: '6', subLabel: '▶', onTap: () {
-                          debugPrint("Keypad: 6 Pressed");
-                          // Will trigger player car horizontal steering shift right adjustments
-                        }),
-                      ],
+                    const Text("Nokia Keypad Overlay: ", style: TextStyle(color: Colors.white)),
+                    Switch(
+                      value: _rallyGame.useVirtualKeypad,
+                      onChanged: (value) {
+                        setState(() {
+                          _rallyGame.useVirtualKeypad = value;
+                        });
+                      },
                     ),
-                    const SizedBox(height: 10),
-                    // Key '8' - Reverse / Brake Down
-                    _buildKypadButton(label: '8', subLabel: '▼', onTap: () {
-                      debugPrint("Keypad: 8 Pressed");
-                      // Will bind to deceleration / reverse mechanics
-                    }),
                   ],
                 ),
               ),
             ),
-          ),
+
+          // వర్చువల్ కీప్యాడ్ లేఅవుట్ (సెట్టింగ్స్ లో ఆన్ చేస్తేనే కనిపిస్తుంది)
+          if (_rallyGame.useVirtualKeypad)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 40.0),
+                child: Container(
+                  width: 200,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade800, width: 2),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildKypadButton(label: '2', subLabel: '▲', onTap: () => _rallyGame.moveUp()),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildKypadButton(label: '4', subLabel: '◀', onTap: () => _rallyGame.moveLeft()),
+                          const SizedBox(width: 25),
+                          _buildKypadButton(label: '6', subLabel: '▶', onTap: () => _rallyGame.moveRight()),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _buildKypadButton(label: '8', subLabel: '▼', onTap: () => _rallyGame.moveDown()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  // Helper widget to construct authentic looking numerical buttons
-  Widget _buildKypadButton({
-    required String label,
-    required String subLabel,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildKypadButton({required String label, required String subLabel, required VoidCallback onTap}) {
     return GestureDetector(
       onTapDown: (_) => onTap(),
       child: Container(
@@ -106,12 +135,8 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         height: 55,
         decoration: BoxDecoration(
           color: Colors.grey.shade900,
-          shape: BoxShape.rectangle,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.grey.shade700, width: 1.5),
-          boxShadow: const [
-            BoxShadow(color: Colors.black38, offset: Offset(2, 2), blurRadius: 4),
-          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
