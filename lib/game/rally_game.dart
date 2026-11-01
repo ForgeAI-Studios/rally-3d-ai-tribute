@@ -1,9 +1,11 @@
+import 'dart:math'; // రాండమ్ పొజిషన్ల కోసం యాడ్ చేసాం
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'player_car.dart';
+import 'obstacle.dart'; // అడ్డంకుల క్లాస్‌ను ఇంపోర్ట్ చేసాం
 
 class RallyGame extends FlameGame with KeyboardEvents {
   final String gameMode;
@@ -13,6 +15,10 @@ class RallyGame extends FlameGame with KeyboardEvents {
   // రోడ్డు కదలిక కోసం వేరియబుల్స్
   double roadOffset = 0.0;
   final double roadSpeed = 300.0; // రోడ్డు కదిలే వేగం
+
+  // అడ్డంకులు (Obstacles) స్పాన్ చేయడానికి వేరియబుల్స్
+  double obstacleTimer = 0.0;
+  final double spawnInterval = 1.5; // ప్రతి 1.5 సెకన్లకు ఒక ట్రాఫిక్ కోన్ వస్తుంది
 
   RallyGame({required this.gameMode});
 
@@ -73,7 +79,29 @@ class RallyGame extends FlameGame with KeyboardEvents {
     // రేస్ మోడ్‌లో ఉంటే రోడ్డు వెనక్కి కదులుతూ ఉంటుంది (కార్ ముందుకు వెళ్తున్న ఫీలింగ్ వస్తుంది)
     if (gameMode == 'Race') {
       roadOffset += roadSpeed * dt;
+
+      // ప్రతి 1.5 సెకన్లకు రోడ్డుపై రాండమ్ పొజిషన్ లో ఒక కొత్త కోన్ యాడ్ చేయడం
+      obstacleTimer += dt;
+      if (obstacleTimer >= spawnInterval) {
+        obstacleTimer = 0.0;
+        
+        double roadWidth = size.x * 0.7;
+        double roadLeft = (size.x - roadWidth) / 2;
+        
+        // రోడ్డు సరిహద్దుల లోపలే అడ్డంకులు వచ్చేలా లెక్కించడం
+        double randomX = roadLeft + 20 + Random().nextDouble() * (roadWidth - 70);
+        
+        // స్క్రీన్ పైభాగాన (-50 వై లొకేషన్ లో) కోన్ క్రియేట్ చేసి యాడ్ చేస్తున్నాం
+        add(Obstacle(position: Vector2(randomX, -50)));
+      }
     }
+
+    // స్క్రీన్ దాటి కిందకు వెళ్ళిపోయిన పాత అడ్డంకులను మెమొరీ నుండి డిలీట్ చేయడం
+    children.whereType<Obstacle>().forEach((obstacle) {
+      if (obstacle.position.y > size.y) {
+        obstacle.removeFromParent();
+      }
+    });
   }
 
   @override
